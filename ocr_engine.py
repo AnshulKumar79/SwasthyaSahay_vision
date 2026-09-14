@@ -1,6 +1,6 @@
 import os
 import io
-import fitz  # PyMuPDF
+import pymupdf as fitz
 from PIL import Image
 import pytesseract
 from openai import OpenAI
