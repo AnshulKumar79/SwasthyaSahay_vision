@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+pytesseract
+PyMuPDF
+onnxruntime
+numpy
+pillow
+openai
+pydantic
