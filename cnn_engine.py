@@ -22,7 +22,7 @@ def process_xray(image_bytes: bytes):
         
         # 3. Reshape array to PyTorch/ONNX format: Batch, Channels, Height, Width (1, 3, 224, 224)
         img_data = np.transpose(img_data, (2, 0, 1))
-        img_data = np.expand_dims(img_data, axis=0)
+        img_data = np.expand_dims(img_data, axis=0).astype(np.float32)
         
         # 4. Run the Lightweight Inference
         outputs = ort_session.run(None, {'input': img_data})
