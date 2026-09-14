@@ -3,7 +3,8 @@ import io
 import pymupdf as fitz
 from PIL import Image
 import pytesseract
-from openai import OpenAI
+import json
+import google.generativeai as genai
 from pydantic import BaseModel
 from typing import List, Literal
 
@@ -24,9 +25,7 @@ class TriageReport(BaseModel):
     abnormalities: List[LabParameter]
     recommended_actions: List[str]
 
-# ---------------- 2. INITIALIZE OPENAI CLIENT ----------------
-# Make sure to set OPENAI_API_KEY in your Render environment variables
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ---------------- 3. LOCAL TEXT EXTRACTION (Zero API Cost) ----------------
 def extract_text_from_payload(file_bytes: bytes, filename: str) -> str:
@@ -67,38 +66,37 @@ def parse_lab_report(file_bytes: bytes, filename: str) -> dict:
     if not raw_text.strip():
         return {"success": False, "error": "Could not extract readable text from the document."}
 
-    # Step 2: Use GPT-4o-mini to clean, analyze, and structure the data
     try:
-        response = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system", 
-                    "content": (
-                        "You are a highly accurate medical triage AI assisting ASHA workers in rural India. "
-                        "Read the following messy OCR text from a diagnostic report. "
-                        "1. Identify the document type (e.g., Complete Blood Count, Urine Routine, LFT, etc.). "
-                        "2. Extract every parameter, its value, and the reference range printed on the report. "
-                        "3. Flag any abnormalities ONLY if they fall outside the printed reference range. "
-                        "4. Determine the Urgency Zone (GREEN for normal, YELLOW for mild issues, RED for critical/severe issues). "
-                        "5. Provide actionable primary-care recommendations."
-                    )
-                },
-                {
-                    "role": "user", 
-                    "content": f"Extract and analyze this lab report:\n\n{raw_text}"
-                }
-            ],
-            response_format=TriageReport
+        # Initialize Gemini 1.5 Flash (Ultra-fast and lightweight)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = f"""
+        You are a highly accurate medical triage AI assisting ASHA workers in rural India.
+        Read the following messy OCR text from a diagnostic report.
+        1. Identify the document type (e.g., Complete Blood Count, Urine Routine, LFT, etc.).
+        2. Extract every parameter, its value, and the reference range printed on the report.
+        3. Flag any abnormalities ONLY if they fall outside the printed reference range.
+        4. Determine the Urgency Zone (GREEN for normal, YELLOW for mild issues, RED for critical/severe issues).
+        5. Provide actionable primary-care recommendations.
+        
+        Report Text:
+        {raw_text}
+        """
+        
+        # Call Gemini and enforce the exact Pydantic schema
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json",
+                response_schema=TriageReport,
+                temperature=0.1  # Low temperature for highly deterministic medical output
+            )
         )
         
-        # Step 3: Get the perfectly formatted Pydantic object
-        report_data = response.choices[0].message.parsed
-        
-        # Step 4: Convert back to a Python dictionary for FastAPI
-        final_result = report_data.model_dump()
-        final_result["success"] = True
-        return final_result
+        # Gemini returns a JSON string, so we load it into a dictionary
+        report_data = json.loads(response.text)
+        report_data["success"] = True
+        return report_data
         
     except Exception as e:
         print(f"LLM Parsing Error: {str(e)}")

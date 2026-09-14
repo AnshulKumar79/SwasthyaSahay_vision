@@ -6,5 +6,5 @@ PyMuPDF
 onnxruntime
 numpy
 pillow
-openai
+google-generativeai
 pydantic
