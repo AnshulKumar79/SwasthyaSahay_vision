@@ -68,7 +68,7 @@ def parse_lab_report(file_bytes: bytes, filename: str) -> dict:
 
     try:
         # Initialize Gemini 1.5 Flash (Ultra-fast and lightweight)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-3.6-flash')
         
         prompt = f"""
         You are a highly accurate medical triage AI assisting ASHA workers in rural India.
